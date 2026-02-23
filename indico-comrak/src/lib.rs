@@ -180,11 +180,12 @@ create_formatter!(
     TargetBlankFormatter, {
         NodeValue::Link(ref nl) => |context, entering| {
             if entering {
-                context.write_str(&format!("<a href=\"{}\" {}target=\"_blank\">", nl.url, if nl.title.is_empty() {
+                let nl_title = if nl.title.is_empty() {
                     ""
                 } else {
                     &format!("title=\"{}\" ", nl.title)
-                }))?;
+                };
+                context.write_str(&format!("<a href=\"{}\" {}target=\"_blank\">", nl.url, nl_title))?;
             } else {
                 context.write_str("</a>")?;
             }
