@@ -1,8 +1,5 @@
-use indico_comrak::{
-    LinkRule, indico_markdown_to_html as _indico_md_to_html,
-    indico_markdown_to_unstyled_html as _indico_md_to_unstyled_html,
-};
-use js_sys::Array;
+use indico_comrak::{LinkRule, MarkdownOptions};
+use js_sys::{Array, Object, Reflect};
 use wasm_bindgen::prelude::*;
 
 /// Converts markdown text to HTML while applying custom link rules
@@ -29,38 +26,58 @@ use wasm_bindgen::prelude::*;
 /// # Example (JavaScript)
 ///
 /// ```javascript
-/// const rules = [
+/// const autolinkRules = [
 ///   [/^#(\d+)$/, 'https://example.com/issues/$1'],
 ///   [/^@(\w+)$/, 'https://example.com/users/$1']
 /// ];
-/// const html = indicoMarkdown("See #123 and @user", rules);
+/// const html = indicoMarkdown("See #123 and @user", {autolinkRules});
 /// ```
 #[wasm_bindgen(js_name = toHtml)]
-pub fn to_html(md_source: &str, js_rules: &Array, nl2br: bool) -> Result<String, JsValue> {
-    let mut rules = Vec::new();
+pub fn to_html(md_source: &str, opts: &Object) -> Result<String, JsValue> {
+    let mut md_opts = MarkdownOptions::new();
 
-    for res in js_rules.values() {
-        let array: js_sys::Array = res?.into();
-        let vec: Vec<_> = array.to_vec();
-        let re: js_sys::RegExp = vec[0].clone().into();
-        let url_pattern = vec[1]
-            .as_string()
-            .ok_or(JsValue::from_str("URL pattern is not a valid string"))?;
+    if let Ok(js_rules) = Reflect::get(opts, &JsValue::from_str("autolinkRules"))
+        && js_rules.is_array()
+    {
+        let mut rules = Vec::new();
+        for res in Array::from(&js_rules).values() {
+            let array: js_sys::Array = res?.into();
+            let vec: Vec<_> = array.to_vec();
+            let re: js_sys::RegExp = vec[0].clone().into();
+            let url_pattern = vec[1]
+                .as_string()
+                .ok_or(JsValue::from_str("URL pattern is not a valid string"))?;
 
-        rules.push(
-            LinkRule::new(
-                &re.source().as_string().ok_or(JsValue::from_str(
-                    "Regular expression is not a valid string",
-                ))?,
-                &url_pattern,
-            )
-            .map_err(|e| e.to_string())?,
-        );
+            rules.push(
+                LinkRule::new(
+                    &re.source().as_string().ok_or(JsValue::from_str(
+                        "Regular expression is not a valid string",
+                    ))?,
+                    &url_pattern,
+                )
+                .map_err(|e| e.to_string())?,
+            );
+        }
+        md_opts.autolink_rules(&rules);
     }
-    _indico_md_to_html(md_source, &rules, nl2br).map_err(|e| JsValue::from_str(&e.to_string()))
-}
 
-#[wasm_bindgen(js_name = toUnstyledHtml)]
-pub fn to_unstyled_html(md_source: &str, nl2br: bool) -> Result<String, JsValue> {
-    _indico_md_to_unstyled_html(md_source, nl2br).map_err(|e| JsValue::from_str(&e.to_string()))
+    if let Ok(js_unstyled) = Reflect::get(opts, &JsValue::from_str("unstyled"))
+        && let Some(js_unstyled) = js_unstyled.as_bool()
+    {
+        md_opts.unstyled(js_unstyled);
+    }
+    if let Ok(js_nl2br) = Reflect::get(opts, &JsValue::from_str("nl2br"))
+        && let Some(js_nl2br) = js_nl2br.as_bool()
+    {
+        md_opts.hardbreaks(js_nl2br);
+    }
+    if let Ok(js_target_blank) = Reflect::get(opts, &JsValue::from_str("target_blank"))
+        && let Some(js_target_blank) = js_target_blank.as_bool()
+    {
+        md_opts.target_blank(js_target_blank);
+    }
+
+    md_opts
+        .render_markdown(md_source)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
 }

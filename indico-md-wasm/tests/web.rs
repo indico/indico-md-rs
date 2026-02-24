@@ -1,10 +1,10 @@
 //! Test suite for the Web and headless browsers.
 
-#![cfg(target_arch = "wasm32")]
+// #![cfg(target_arch = "wasm32")]
 
 extern crate wasm_bindgen_test;
-use indico_md_wasm::{to_html, to_unstyled_html};
-use js_sys::{Array, RegExp};
+use indico_md_wasm::to_html;
+use js_sys::{Array, Object, Reflect, RegExp};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_test::*;
 
@@ -25,7 +25,9 @@ fn function_test() {
         &JsValue::from("https://github.com/indico/indico/issues/{1}"),
     ));
 
-    let res = to_html(md, &rules.into(), false).unwrap();
+    let opts =
+        Object::from_entries(&Array::of1(&Array::of2(&"autolinkRules".into(), &rules))).unwrap();
+    let res = to_html(md, &opts.clone()).unwrap();
 
     assert_eq!(
         res,
@@ -38,10 +40,11 @@ fn function_test() {
 "##
     );
 
+    Reflect::set(&opts, &"unstyled".into(), &true.into()).unwrap();
     assert_eq!(
-        to_unstyled_html(
+        to_html(
             "## title\n[`link`](https://example.com)\\\n`more` **text**",
-            false
+            &opts
         )
         .unwrap(),
         "title\n<p>link<br />\nmore text</p>\n"
@@ -51,27 +54,36 @@ fn function_test() {
 #[wasm_bindgen_test]
 fn nl2br_test() {
     assert_eq!(
-        to_html("hello\nworld", &Array::new(), false),
+        to_html("hello\nworld", &Object::new()),
         Ok("<p>hello\nworld</p>\n".into())
     );
+    let opts =
+        Object::from_entries(&Array::of1(&Array::of2(&"unstyled".into(), &true.into()))).unwrap();
     assert_eq!(
-        to_unstyled_html("hello\nworld", false),
+        to_html("hello\nworld", &opts),
         Ok("<p>hello\nworld</p>\n".into())
     );
+    let opts =
+        Object::from_entries(&Array::of1(&Array::of2(&"nl2br".into(), &true.into()))).unwrap();
     assert_eq!(
-        to_html("hello\nworld", &Array::new(), true),
+        to_html("hello\nworld", &opts),
         Ok("<p>hello<br />\nworld</p>\n".into())
     );
+    let opts = Object::from_entries(&Array::of2(
+        &Array::of2(&"unstyled".into(), &true.into()),
+        &Array::of2(&"nl2br".into(), &true.into()),
+    ))
+    .unwrap();
     assert_eq!(
-        to_unstyled_html("hello\nworld", true),
+        to_html("hello\nworld", &opts),
         Ok("<p>hello<br />\nworld</p>\n".into())
     );
 }
 
 #[wasm_bindgen_test]
 fn interface_test() {
-    assert_eq!(to_html("", &Array::new(), false), Ok("".into()));
-    assert_eq!(to_html("", &Array::new(), true), Ok("".into()));
+    assert_eq!(to_html("", &Object::new()), Ok("".into()));
+    assert_eq!(to_html("", &Object::new()), Ok("".into()));
 
     let rules = Array::new();
     rules.push(&Array::of2(
@@ -79,7 +91,9 @@ fn interface_test() {
         // URL cannot be a bool, so this should fail
         &JsValue::from_bool(true),
     ));
-    let res = to_html("foo", &rules, false);
+    let opts =
+        Object::from_entries(&Array::of1(&Array::of2(&"autolinkRules".into(), &rules))).unwrap();
+    let res = to_html("foo", &opts);
     assert!(res.is_err());
     assert!(
         res.err()
