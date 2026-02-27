@@ -51,12 +51,12 @@
             line-height: 1.3;
             color: #0f172a;
         }
-        .preview h1 { 
+        .preview h1 {
             font-size: 2em;
             border-bottom: 2px solid #e2e8f0;
             padding-bottom: 0.3em;
         }
-        .preview h2 { 
+        .preview h2 {
             font-size: 1.5em;
             border-bottom: 1px solid #e2e8f0;
             padding-bottom: 0.2em;
@@ -64,12 +64,12 @@
         .preview h3 { font-size: 1.25em; }
 
         /* Links */
-        .preview a { 
+        .preview a {
             color: #2563eb;
             text-decoration: none;
             transition: color 0.2s ease;
         }
-        .preview a:hover { 
+        .preview a:hover {
             color: #1d4ed8;
             text-decoration: underline;
         }
@@ -191,19 +191,21 @@
         }
     </style>
     <script type="module">
-        import init, {toHtml, toUnstyledHtml} from './pkg/indico_md_wasm.js';
+        import init, {toHtml} from './pkg/indico_md_wasm.js';
         await init();
 
         const editor = document.getElementById('editor');
         const preview = document.getElementById('preview');
         const styledToggle = document.getElementById('styledToggle');
+        const nl2brToggle = document.getElementById('nl2brToggle');
         const rules = [
-            [/\b(OTG\d{7})\b/, 'https://cern.service-now.com/service-portal?id=outage&n={1}']
+            ['\\b(OTG\\d{7})\\b', 'https://cern.service-now.com/service-portal?id=outage&n={1}']
         ];
 
         function render() {
             const useStyled = styledToggle.checked;
-            const html = useStyled ? toHtml(editor.value, rules) : toUnstyledHtml(editor.value, rules);
+            const nl2br = nl2brToggle.checked;
+            const html = toHtml(editor.value, {autolinkRules: rules, unstyled: !useStyled, nl2br});
             preview.innerHTML = html;
 
             // handle MathJax placeholders inserted by the renderer
@@ -227,6 +229,7 @@
 
         editor.addEventListener('input', render);
         styledToggle.addEventListener('change', render);
+        nl2brToggle.addEventListener('change', render);
 
         // initial render
         render();
@@ -254,6 +257,10 @@
         <div class="toggle">
             <label for="styledToggle">Styled HTML</label>
             <input id="styledToggle" type="checkbox" checked>
+        </div>
+        <div class="toggle">
+            <label for="nl2brToggle">Hard linebreaks (like on GitHub)</label>
+            <input id="nl2brToggle" type="checkbox">
         </div>
         <div style="color:#6b7280; font-size:13px;"></div>
     </div>
@@ -322,7 +329,7 @@ Some more code
 
 This thing is capable of escaping MathJax formulas, whether they are inline, like $E = mc^2$.
 
-Or in display mode: 
+Or in display mode:
 
 $$
 x = {-b \pm \sqrt{b^2-4ac} \over 2a}
