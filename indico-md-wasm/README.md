@@ -47,18 +47,21 @@ console.log(toHtml("**bold** text", [], false));
 
 Link rules example
 ```js
-const rules = [
+const autolinkRules = [
   [/^#(\d+)$/, "https://example.com/issues/$1"],
   [/^@(\w+)$/, "https://example.com/users/$1"]
 ];
 
-const html = toHtml("See #123 and @user", rules, false);
+const html = toHtml("See #123 and @user", {autolinkRules});
 ```
 
 API (exports)
 - (default) `init(): Promise<void>` — initializes the WASM module
-- `toHtml(source: string, rules: Array, nl2br: Boolean): string` — converts Indico-flavored markdown to HTML; `rules` is a JS array of `[RegExp, string]` pairs (use `[]` when none)
-- `toUnstyledHtml(source: string, nl2br: Boolean): string` — converts Indico-flavored markdown to HTML, removing all formatting, links and images (i.e. only paragraphs and line breaks)
+- `toHtml(source: string, opts?: Object): string` — converts Indico-flavored markdown to HTML; `opts` is a JS object with these (optional) keys:
+  - `unstyled` - a bool whether to generate unstyled output (defaults to false)
+  - `nl2br` - a bool whether to convert `\n` to `<br>` like (defaults to false)
+  - `targetBlank` - a bool whether links should open in a new window (defaults to true)
+  - `autolinkRules` - an array of `['regex', 'replacement']` tuples
 
 ### Tests
 ```bash
