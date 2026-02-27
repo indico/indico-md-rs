@@ -21,8 +21,9 @@ def test_output_ok():
 """
     assert indico_md.to_html(source, link_rules=rules) == result
     assert (
-        indico_md.to_unstyled_html(
-            "## title\n[`link`](https://example.com)\\\n`more` **text**"
+        indico_md.to_html(
+            "## title\n[`link`](https://example.com)\\\n`more` **text**",
+            unstyled=True
         )
         == "title\n<p>link<br />\nmore text</p>\n"
     )
@@ -31,8 +32,8 @@ def test_output_ok():
 def test_nl2br():
     assert indico_md.to_html('hello\nworld') == '<p>hello\nworld</p>\n'
     assert indico_md.to_html('hello\nworld', nl2br=True) == '<p>hello<br />\nworld</p>\n'
-    assert indico_md.to_unstyled_html('hello\nworld') == '<p>hello\nworld</p>\n'
-    assert indico_md.to_unstyled_html('hello\nworld', nl2br=True) == '<p>hello<br />\nworld</p>\n'
+    assert indico_md.to_html('hello\nworld', unstyled=True) == '<p>hello\nworld</p>\n'
+    assert indico_md.to_html('hello\nworld', unstyled=True, nl2br=True) == '<p>hello<br />\nworld</p>\n'
 
 
 def test_exceptions():
