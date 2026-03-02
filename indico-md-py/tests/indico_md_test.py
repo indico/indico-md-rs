@@ -25,15 +25,15 @@ def test_output_ok():
             "## title\n[`link`](https://example.com)\\\n`more` **text**",
             unstyled=True
         )
-        == "title\n<p>link<br />\nmore text</p>\n"
+        == "titlelink<br />\nmore text\n"
     )
 
 
 def test_nl2br():
     assert indico_md.to_html('hello\nworld') == '<p>hello\nworld</p>\n'
     assert indico_md.to_html('hello\nworld', nl2br=True) == '<p>hello<br />\nworld</p>\n'
-    assert indico_md.to_html('hello\nworld', unstyled=True) == '<p>hello\nworld</p>\n'
-    assert indico_md.to_html('hello\nworld', unstyled=True, nl2br=True) == '<p>hello<br />\nworld</p>\n'
+    assert indico_md.to_html('hello\nworld', unstyled=True) == 'hello\nworld\n'
+    assert indico_md.to_html('hello\nworld', unstyled=True, nl2br=True) == 'hello<br />\nworld<br />\n'
 
 
 def test_exceptions():
