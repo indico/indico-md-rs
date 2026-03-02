@@ -254,7 +254,7 @@ fn add_links<'t>(root: &mut Node<'t>, arena: &'t Arena<'t>, link_rules: &[LinkRu
         }
     }
 
-    for (node, text, matches) in to_process {
+    for (node, text, mut matches) in to_process {
         // Exclude nodes whose ancestor is a link
         if has_link_ancestor(node) {
             continue;
@@ -264,6 +264,9 @@ fn add_links<'t>(root: &mut Node<'t>, arena: &'t Arena<'t>, link_rules: &[LinkRu
         node.detach();
 
         let mut prev_end = 0;
+
+        // sort matches in the order by which they appear in the string
+        matches.sort_by_key(|f| f.0.0);
 
         // let's check each match one by one
         for ((start, end), url, capture_groups) in &matches {
@@ -439,6 +442,30 @@ mod tests {
             "<p><a href=\"FOOBAR\" title=\"FOO\" target=\"_blank\">FOO</a> is <a href=\"FOOBAR\" title=\"FOO\" target=\"_blank\">FOO</a> \
 and <a href=\"FOOBAR\" title=\"BAR\" target=\"_blank\">BAR</a> is <a href=\"FOOBAR\" title=\"BAR\" target=\"_blank\">BAR</a></p>\n"
         );
+    }
+
+    #[test]
+    fn test_indico_autolink_multi() {
+        let md = r#"INC1234567 and OTG1234567"#;
+        let expected = r##"<p><a href="https://tkt.example/INC1234567" title="INC1234567" target="_blank">INC1234567</a> and <a href="https://tkt.example/OTG1234567" title="OTG1234567" target="_blank">OTG1234567</a></p>
+"##;
+        let res = MarkdownOptions::new()
+            .autolink_rules(&[
+                LinkRule::new(r"\b(OTG\d{7})\b", "https://tkt.example/{1}").unwrap(),
+                LinkRule::new(r"\b(INC\d{7})\b", "https://tkt.example/{1}").unwrap(),
+            ])
+            .render_markdown(md)
+            .unwrap();
+        assert_eq!(res, expected);
+        // reverse rule order
+        let res = MarkdownOptions::new()
+            .autolink_rules(&[
+                LinkRule::new(r"\b(INC\d{7})\b", "https://tkt.example/{1}").unwrap(),
+                LinkRule::new(r"\b(OTG\d{7})\b", "https://tkt.example/{1}").unwrap(),
+            ])
+            .render_markdown(md)
+            .unwrap();
+        assert_eq!(res, expected);
     }
 
     #[test]
