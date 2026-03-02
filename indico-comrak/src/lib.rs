@@ -125,11 +125,26 @@ fn plain_text_formatter<'a>(
             }
             Ok(ChildRendering::HTML)
         }
-        // Text, paragraphs and breaks stay the same
-        NodeValue::Text(..)
-        | NodeValue::Paragraph
-        | NodeValue::SoftBreak
-        | NodeValue::LineBreak => comrak::html::format_node_default(context, node, entering),
+        // Paragraphs are rendered like soft breaks when leaving them
+        // XXX This may be a problem w/ hardbreaks enabled, since it always adds a trailing hardbreak,
+        // which is not really something we want, but for now we don't use it with hardbreaks so I'm not
+        // going to worry about how to fix it...
+        NodeValue::Paragraph => {
+            if !entering {
+                if context.options.render.hardbreaks {
+                    context.write_str("<br")?;
+                    context.write_str(" />\n")?;
+                } else {
+                    context.write_str("\n")?;
+                }
+            }
+
+            Ok(ChildRendering::HTML)
+        }
+        // Text and breaks stay the same
+        NodeValue::Text(..) | NodeValue::SoftBreak | NodeValue::LineBreak => {
+            comrak::html::format_node_default(context, node, entering)
+        }
         // Text decoration is ignored
         NodeValue::Strong
         | NodeValue::Emph
@@ -497,26 +512,33 @@ and <a href=\"FOOBAR\" title=\"BAR\" target=\"_blank\">BAR</a> is <a href=\"FOOB
 
     #[test]
     fn test_indico_md_to_plain() {
+        let md = "**Hello**\n*World*\n\nFoo";
+        let html = MarkdownOptions::new()
+            .unstyled(true)
+            .render_markdown(md)
+            .unwrap();
+        assert_eq!(html, "Hello\nWorld\nFoo\n");
+
         let md = "[**Foo**](https://example.com)\n\n==B`ar`==<div>foo</div>";
         let html = MarkdownOptions::new()
             .unstyled(true)
             .render_markdown(md)
             .unwrap();
-        assert_eq!(html, "<p>Foo</p>\n<p>Barfoo</p>\n");
+        assert_eq!(html, "Foo\nBarfoo\n");
 
         let md = "soft\\\nvs hard break\n\nhello";
         let html = MarkdownOptions::new()
             .unstyled(true)
             .render_markdown(md)
             .unwrap();
-        assert_eq!(html, "<p>soft<br />\nvs hard break</p>\n<p>hello</p>\n");
+        assert_eq!(html, "soft<br />\nvs hard break\nhello\n");
 
         let md = "soft<br/>vs hard break<p>hello</p>";
         let html = MarkdownOptions::new()
             .unstyled(true)
             .render_markdown(md)
             .unwrap();
-        assert_eq!(html, "<p>soft<br />vs hard break<p>hello</p></p>\n");
+        assert_eq!(html, "soft<br />vs hard break<p>hello</p>\n");
 
         let md = "* a list\n* of\n  - nested\n* things";
         let html = MarkdownOptions::new()
@@ -525,7 +547,7 @@ and <a href=\"FOOBAR\" title=\"BAR\" target=\"_blank\">BAR</a> is <a href=\"FOOB
             .unwrap();
         assert_eq!(
             html,
-            "\n  * a list\n  * of\n    - nested\n\n\n  * things\n\n"
+            "\n  * a list\n\n  * of\n\n    - nested\n\n\n\n  * things\n\n\n"
         );
 
         let md = "1. a list\n2. of\n    - nested\n3. ordered things";
@@ -535,7 +557,7 @@ and <a href=\"FOOBAR\" title=\"BAR\" target=\"_blank\">BAR</a> is <a href=\"FOOB
             .unwrap();
         assert_eq!(
             html,
-            "\n  1. a list\n  2. of\n    - nested\n\n\n  3. ordered things\n\n"
+            "\n  1. a list\n\n  2. of\n\n    - nested\n\n\n\n  3. ordered things\n\n\n"
         );
     }
 
@@ -547,7 +569,7 @@ and <a href=\"FOOBAR\" title=\"BAR\" target=\"_blank\">BAR</a> is <a href=\"FOOB
             .unstyled(true)
             .render_markdown(md)
             .unwrap();
-        assert_eq!(html, "<p>hello\nworld</p>\n");
+        assert_eq!(html, "hello\nworld\n");
         let html = MarkdownOptions::new().render_markdown(md).unwrap();
         assert_eq!(html, "<p>hello\nworld</p>\n");
         let html = MarkdownOptions::new()
@@ -555,7 +577,7 @@ and <a href=\"FOOBAR\" title=\"BAR\" target=\"_blank\">BAR</a> is <a href=\"FOOB
             .hardbreaks(true)
             .render_markdown(md)
             .unwrap();
-        assert_eq!(html, "<p>hello<br />\nworld</p>\n");
+        assert_eq!(html, "hello<br />\nworld<br />\n"); // XXX the last hardbreak is undesirable
         let html = MarkdownOptions::new()
             .hardbreaks(true)
             .render_markdown(md)
