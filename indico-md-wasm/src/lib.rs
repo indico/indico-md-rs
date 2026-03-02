@@ -18,6 +18,12 @@ pub struct JsMarkdownOpts {
     pub autolink_rules: Option<Vec<JsAutolinkRule>>,
 }
 
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(typescript_type = "JsMarkdownOpts")]
+    pub type IMarkdownOpts;
+}
+
 /// Converts markdown text to HTML while applying custom link rules
 ///
 /// This function takes markdown text and an array of link rules from JavaScript,
@@ -49,11 +55,12 @@ pub struct JsMarkdownOpts {
 /// const html = indicoMarkdown("See #123 and @user", {autolinkRules});
 /// ```
 #[wasm_bindgen(js_name = toHtml)]
-pub fn to_html(md_source: &str, opts: Option<JsValue>) -> Result<String, JsValue> {
+pub fn to_html(md_source: &str, opts: Option<IMarkdownOpts>) -> Result<String, JsValue> {
     let mut md_opts = MarkdownOptions::new();
 
     let opts: JsMarkdownOpts = if let Some(opts) = opts {
-        serde_wasm_bindgen::from_value(opts).map_err(|e| JsValue::from_str(&e.to_string()))?
+        serde_wasm_bindgen::from_value(opts.into())
+            .map_err(|e| JsValue::from_str(&e.to_string()))?
     } else {
         JsMarkdownOpts::default()
     };

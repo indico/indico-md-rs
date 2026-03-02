@@ -28,7 +28,11 @@ fn function_test() {
         ]),
         ..JsMarkdownOpts::default()
     };
-    let res = to_html(md, Some(serde_wasm_bindgen::to_value(&opts).unwrap())).unwrap();
+    let res = to_html(
+        md,
+        Some(serde_wasm_bindgen::to_value(&opts).unwrap().into()),
+    )
+    .unwrap();
 
     assert_eq!(
         res,
@@ -46,7 +50,11 @@ fn function_test() {
         unstyled: Some(true),
         ..opts
     };
-    let res = to_html(md, Some(serde_wasm_bindgen::to_value(&opts).unwrap())).unwrap();
+    let res = to_html(
+        md,
+        Some(serde_wasm_bindgen::to_value(&opts).unwrap().into()),
+    )
+    .unwrap();
     assert_eq!(res, "title\n<p>link<br />\nmore text</p>\n")
 }
 
@@ -65,6 +73,7 @@ fn nl2br_test() {
                     ..JsMarkdownOpts::default()
                 })
                 .unwrap()
+                .into()
             )
         ),
         Ok("<p>hello\nworld</p>\n".into())
@@ -78,6 +87,7 @@ fn nl2br_test() {
                     ..JsMarkdownOpts::default()
                 })
                 .unwrap()
+                .into()
             )
         ),
         Ok("<p>hello<br />\nworld</p>\n".into())
@@ -92,6 +102,7 @@ fn nl2br_test() {
                     ..JsMarkdownOpts::default()
                 })
                 .unwrap()
+                .into()
             )
         ),
         Ok("<p>hello<br />\nworld</p>\n".into())
@@ -102,7 +113,7 @@ fn nl2br_test() {
 fn interface_test() {
     assert_eq!(to_html("", None), Ok("".into()));
     assert_eq!(
-        to_html("", Some(JsValue::from(Object::new()))),
+        to_html("", Some(JsValue::from(Object::new()).into())),
         Ok("".into())
     );
 
@@ -115,7 +126,7 @@ fn interface_test() {
         ),
     )))
     .unwrap();
-    let res = to_html("foo", Some(JsValue::from(opts)));
+    let res = to_html("foo", Some(JsValue::from(opts).into()));
     assert!(res.is_err());
     assert!(
         res.err()
@@ -137,7 +148,7 @@ fn interface_test() {
         ),
     )))
     .unwrap();
-    let res = to_html("foo", Some(JsValue::from(opts)));
+    let res = to_html("foo", Some(JsValue::from(opts).into()));
     assert!(res.is_err());
     assert!(
         res.err()
@@ -153,7 +164,7 @@ fn interface_test() {
         &JsValue::from_f64(69.0),
     )))
     .unwrap();
-    let res = to_html("foo", Some(JsValue::from(opts)));
+    let res = to_html("foo", Some(JsValue::from(opts).into()));
     assert!(res.is_err());
     assert!(
         res.err()
@@ -164,7 +175,7 @@ fn interface_test() {
     );
 
     // invalid type for config object
-    let res = to_html("foo", Some(JsValue::from_f64(69.0)));
+    let res = to_html("foo", Some(JsValue::from_f64(69.0).into()));
     assert!(res.is_err());
     assert!(
         res.err()
