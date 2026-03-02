@@ -199,7 +199,7 @@
         const styledToggle = document.getElementById('styledToggle');
         const nl2brToggle = document.getElementById('nl2brToggle');
         const rules = [
-            ['\\b(OTG\\d{7})\\b', 'https://cern.service-now.com/service-portal?id=outage&n={1}']
+            {regex: '\\b(OTG\\d{7})\\b', url: 'https://cern.service-now.com/service-portal?id=outage&n={1}'},
         ];
 
         function render() {
