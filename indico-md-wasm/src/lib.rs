@@ -1,27 +1,21 @@
 use indico_comrak::{LinkRule, MarkdownOptions};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 
-#[derive(Debug, Deserialize)]
-#[serde(from = "(String, String)")]
-struct JsAutolinkRule {
-    re: String,
-    url: String,
+#[derive(Debug, Deserialize, Serialize, Tsify)]
+pub struct JsAutolinkRule {
+    pub regex: String,
+    pub url: String,
 }
 
-impl From<(String, String)> for JsAutolinkRule {
-    fn from((re, url): (String, String)) -> Self {
-        Self { re, url }
-    }
-}
-
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Serialize, Default, Tsify)]
 #[serde(rename_all = "camelCase")]
 pub struct JsMarkdownOpts {
-    unstyled: Option<bool>,
-    nl2br: Option<bool>,
-    target_blank: Option<bool>,
-    autolink_rules: Option<Vec<JsAutolinkRule>>,
+    pub unstyled: Option<bool>,
+    pub nl2br: Option<bool>,
+    pub target_blank: Option<bool>,
+    pub autolink_rules: Option<Vec<JsAutolinkRule>>,
 }
 
 /// Converts markdown text to HTML while applying custom link rules
@@ -69,7 +63,7 @@ pub fn to_html(md_source: &str, opts: Option<JsValue>) -> Result<String, JsValue
     {
         let rules: Vec<LinkRule> = cfg_rules
             .iter()
-            .map(|r| LinkRule::new(&r.re, &r.url))
+            .map(|r| LinkRule::new(&r.regex, &r.url))
             .collect::<Result<_, _>>()
             .map_err(|e| e.to_string())?;
         md_opts.autolink_rules(&rules);

@@ -48,8 +48,8 @@ console.log(toHtml("**bold** text", [], false));
 Link rules example
 ```js
 const autolinkRules = [
-  [/^#(\d+)$/, "https://example.com/issues/$1"],
-  [/^@(\w+)$/, "https://example.com/users/$1"]
+  {regex: '^#(\\d+)$', url: 'https://example.com/issues/$1'},
+  {regex: '^@(\\w+)$', url: 'https://example.com/users/$'},
 ];
 
 const html = toHtml("See #123 and @user", {autolinkRules});
@@ -61,7 +61,7 @@ API (exports)
   - `unstyled` - a bool whether to generate unstyled output (defaults to false)
   - `nl2br` - a bool whether to convert `\n` to `<br>` like (defaults to false)
   - `targetBlank` - a bool whether links should open in a new window (defaults to true)
-  - `autolinkRules` - an array of `['regex', 'replacement']` tuples
+  - `autolinkRules` - an array of `{regex, url}` objects
 
 ### Tests
 ```bash
