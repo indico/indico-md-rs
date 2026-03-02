@@ -55,7 +55,7 @@ fn function_test() {
         Some(serde_wasm_bindgen::to_value(&opts).unwrap().into()),
     )
     .unwrap();
-    assert_eq!(res, "title\n<p>link<br />\nmore text</p>\n")
+    assert_eq!(res, "titlelink<br />\nmore text\n")
 }
 
 #[wasm_bindgen_test]
@@ -76,7 +76,7 @@ fn nl2br_test() {
                 .into()
             )
         ),
-        Ok("<p>hello\nworld</p>\n".into())
+        Ok("hello\nworld\n".into())
     );
     assert_eq!(
         to_html(
@@ -105,7 +105,7 @@ fn nl2br_test() {
                 .into()
             )
         ),
-        Ok("<p>hello<br />\nworld</p>\n".into())
+        Ok("hello<br />\nworld<br />\n".into())
     );
 }
 
