@@ -560,51 +560,35 @@ and <a href=\"FOOBAR\" title=\"BAR\" target=\"_blank\">BAR</a> is <a href=\"FOOB
 
     #[test]
     fn test_indico_md_to_plain() {
-        let md = "**Hello**\n*World*\n\nFoo";
-        let html = MarkdownOptions::new()
-            .unstyled(true)
-            .render_markdown(md)
-            .unwrap();
-        assert_eq!(html, "Hello\nWorld\nFoo\n");
+        macro_rules! md_test {
+            ($md:expr, $html:expr) => {
+                let res = MarkdownOptions::new()
+                    .unstyled(true)
+                    .render_markdown($md)
+                    .unwrap();
+                assert_eq!(res, $html);
+            };
+        }
 
-        let md = "[**Foo**](https://example.com)\n\n==B`ar`==<div>foo</div>";
-        let html = MarkdownOptions::new()
-            .unstyled(true)
-            .render_markdown(md)
-            .unwrap();
-        assert_eq!(html, "Foo\nBarfoo\n");
-
-        let md = "soft\\\nvs hard break\n\nhello";
-        let html = MarkdownOptions::new()
-            .unstyled(true)
-            .render_markdown(md)
-            .unwrap();
-        assert_eq!(html, "soft<br />\nvs hard break\nhello\n");
-
-        let md = "soft<br/>vs hard break<p>hello</p>";
-        let html = MarkdownOptions::new()
-            .unstyled(true)
-            .render_markdown(md)
-            .unwrap();
-        assert_eq!(html, "soft<br />vs hard break<p>hello</p>\n");
-
-        let md = "* a list\n* of\n  - nested\n* things";
-        let html = MarkdownOptions::new()
-            .unstyled(true)
-            .render_markdown(md)
-            .unwrap();
-        assert_eq!(
-            html,
+        md_test!("**Hello**\n*World*\n\nFoo", "Hello\nWorld\nFoo\n");
+        md_test!(
+            "[**Foo**](https://example.com)\n\n==B`ar`==<div>foo</div>",
+            "Foo\nBarfoo\n"
+        );
+        md_test!(
+            "soft\\\nvs hard break\n\nhello",
+            "soft<br />\nvs hard break\nhello\n"
+        );
+        md_test!(
+            "soft<br/>vs hard break<p>hello</p>",
+            "soft<br />vs hard break<p>hello</p>\n"
+        );
+        md_test!(
+            "* a list\n* of\n  - nested\n* things",
             "\n  * a list\n\n  * of\n\n    - nested\n\n\n\n  * things\n\n\n"
         );
-
-        let md = "1. a list\n2. of\n    - nested\n3. ordered things";
-        let html = MarkdownOptions::new()
-            .unstyled(true)
-            .render_markdown(md)
-            .unwrap();
-        assert_eq!(
-            html,
+        md_test!(
+            "1. a list\n2. of\n    - nested\n3. ordered things",
             "\n  1. a list\n\n  2. of\n\n    - nested\n\n\n\n  3. ordered things\n\n\n"
         );
     }
