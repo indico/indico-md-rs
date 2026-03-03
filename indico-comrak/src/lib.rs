@@ -132,8 +132,7 @@ fn plain_text_formatter<'a>(
         NodeValue::Paragraph => {
             if !entering {
                 if context.options.render.hardbreaks {
-                    context.write_str("<br")?;
-                    context.write_str(" />\n")?;
+                    context.write_str("<br />\n")?;
                 } else {
                     context.write_str("\n")?;
                 }
