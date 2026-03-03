@@ -16,9 +16,19 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
 
       - name: Install
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - run: wasm-pack test --node
+  clippy_format:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: true
+    - name: Check clippy
+      run: rustup component add clippy && cargo clippy -- -D warnings
+    - name: Check formatting
+      run: rustup component add rustfmt && cargo fmt -- --check

@@ -21,7 +21,7 @@ jobs:
     outputs:
       release_built: ${{ steps.set-output.outputs.release_built }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Build binaries in "${{ matrix.BUILD_TARGET }}" mode
         run: cargo build --profile ${{ matrix.BUILD_TARGET }}
       - name: Run tests in "${{ matrix.BUILD_TARGET }}" mode
@@ -29,10 +29,10 @@ jobs:
   clippy_format:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
       with:
         submodules: true
     - name: Check clippy
-      run: rustup component add clippy && cargo clippy
+      run: rustup component add clippy && cargo clippy -- -D warnings
     - name: Check formatting
       run: rustup component add rustfmt && cargo fmt -- --check
