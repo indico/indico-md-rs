@@ -275,19 +275,26 @@ fn add_links<'t>(root: &mut Node<'t>, arena: &'t Arena<'t>, link_rules: &[LinkRu
             continue;
         }
 
-        let parent = node.parent().unwrap();
-        node.detach();
-
         let mut prev_end = 0;
 
         // sort matches in the order by which they appear in the string
         matches.sort_by_key(|f| f.0.0);
 
+        let parent = node.parent().unwrap();
+        let next = node.next_sibling();
+        let append = |new| {
+            if let Some(next) = next {
+                // if the node is not the last child of its parent, insert each newly created node before the successor
+                next.insert_before(new);
+            } else {
+                // otherwise just append at the end of the parent
+                parent.append(new);
+            }
+        };
+
         // let's check each match one by one
         for ((start, end), url, capture_groups) in &matches {
-            parent.append(
-                arena.alloc(NodeValue::Text(text[prev_end..*start].to_string().into()).into()),
-            );
+            append(arena.alloc(NodeValue::Text(text[prev_end..*start].to_string().into()).into()));
 
             let link = arena.alloc(
                 NodeValue::Link(Box::new(NodeLink {
@@ -298,15 +305,17 @@ fn add_links<'t>(root: &mut Node<'t>, arena: &'t Arena<'t>, link_rules: &[LinkRu
             );
             link.append(arena.alloc(NodeValue::Text(text[*start..*end].to_string().into()).into()));
 
-            parent.append(link);
+            append(link);
             prev_end = *end;
         }
 
         let last_end = matches.last().unwrap().0.1;
 
         if last_end != text.len() {
-            parent.append(arena.alloc(NodeValue::Text(text[last_end..].to_string().into()).into()));
+            append(arena.alloc(NodeValue::Text(text[last_end..].to_string().into()).into()));
         }
+
+        node.detach();
     }
 }
 
@@ -481,6 +490,45 @@ and <a href=\"FOOBAR\" title=\"BAR\" target=\"_blank\">BAR</a> is <a href=\"FOOB
             .render_markdown(md)
             .unwrap();
         assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_indico_autolink_inline() {
+        macro_rules! md_test {
+            ($md:expr, $html:expr) => {
+                let res = MarkdownOptions::new()
+                    .target_blank(false)
+                    .autolink_rules(&[LinkRule::new(r"(INC)", "https://tkt.example/{1}").unwrap()])
+                    .render_markdown($md)
+                    .unwrap();
+                assert_eq!(res, $html);
+            };
+        }
+
+        md_test!(
+            r#"INC **foo**"#,
+            "<p><a href=\"https://tkt.example/INC\" title=\"INC\">INC</a> <strong>foo</strong></p>\n"
+        );
+        md_test!(
+            r#"**foo** INC"#,
+            "<p><strong>foo</strong> <a href=\"https://tkt.example/INC\" title=\"INC\">INC</a></p>\n"
+        );
+        md_test!(
+            r#"**foo**INC"#,
+            "<p><strong>foo</strong><a href=\"https://tkt.example/INC\" title=\"INC\">INC</a></p>\n"
+        );
+        md_test!(
+            r#"INC**foo**"#,
+            "<p><a href=\"https://tkt.example/INC\" title=\"INC\">INC</a><strong>foo</strong></p>\n"
+        );
+        md_test!(
+            r#"aINCb"#,
+            "<p>a<a href=\"https://tkt.example/INC\" title=\"INC\">INC</a>b</p>\n"
+        );
+        md_test!(
+            r#"INCINC"#,
+            "<p><a href=\"https://tkt.example/INC\" title=\"INC\">INC</a><a href=\"https://tkt.example/INC\" title=\"INC\">INC</a></p>\n"
+        );
     }
 
     #[test]
