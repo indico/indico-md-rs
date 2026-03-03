@@ -8,7 +8,7 @@
 //! a set of link rules defined as regular expressions and their corresponding URL replacements.
 //! It returns the resulting HTML as a string, wrapped in a PyResult to handle potential errors
 //! during the conversion process.
-use indico_comrak::{LinkRule, indico_markdown_to_html, indico_markdown_to_unstyled_html};
+use indico_comrak::{LinkRule, MarkdownOptions};
 use pyo3::{
     exceptions::{PyRuntimeError, PyValueError},
     prelude::*,
@@ -46,24 +46,32 @@ use std::collections::HashMap;
 /// # Output: '<p>See issue <a href="https://github.com/org/repo/issues/1234">#1234</a> for details</p>'
 /// ```
 #[pyfunction]
-fn to_html(md_source: &str, link_rules: HashMap<String, String>) -> PyResult<String> {
+#[pyo3(signature=(md_source, /, *, link_rules=None, nl2br=false, unstyled=false, target_blank=true))]
+fn to_html(
+    md_source: &str,
+    link_rules: Option<HashMap<String, String>>,
+    nl2br: bool,
+    unstyled: bool,
+    target_blank: bool,
+) -> PyResult<String> {
     let rules: Vec<_> = link_rules
+        .unwrap_or_default()
         .iter()
         .map(|(re, url)| LinkRule::new(re, url))
         .collect::<Result<_, _>>()
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
 
-    indico_markdown_to_html(md_source, &rules).map_err(|e| PyRuntimeError::new_err(e.to_string()))
-}
-
-#[pyfunction]
-fn to_unstyled_html(md_source: &str) -> PyResult<String> {
-    indico_markdown_to_unstyled_html(md_source).map_err(|e| PyRuntimeError::new_err(e.to_string()))
+    MarkdownOptions::new()
+        .hardbreaks(nl2br)
+        .unstyled(unstyled)
+        .target_blank(target_blank)
+        .autolink_rules(&rules)
+        .render_markdown(md_source)
+        .map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
 #[pymodule]
 fn indico_md(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(to_html, m)?)?;
-    m.add_function(wrap_pyfunction!(to_unstyled_html, m)?)?;
     Ok(())
 }

@@ -1,10 +1,10 @@
 //! Test suite for the Web and headless browsers.
 
-#![cfg(target_arch = "wasm32")]
+// #![cfg(target_arch = "wasm32")]
 
 extern crate wasm_bindgen_test;
-use indico_md_wasm::{to_html, to_unstyled_html};
-use js_sys::{Array, RegExp};
+use indico_md_wasm::{JsAutolinkRule, JsMarkdownOpts, to_html};
+use js_sys::{Array, Object};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_test::*;
 
@@ -15,17 +15,24 @@ fn function_test() {
  * Still checking gh:123
  * [gh:124](https://somewhere.else) shouldn't be autolinked
 "#;
-    let rules = Array::new();
-    rules.push(&Array::of2(
-        &RegExp::new(r"\bTKT(\d{7})\b", ""),
-        &JsValue::from("https://tkt.sys/{1}"),
-    ));
-    rules.push(&Array::of2(
-        &RegExp::new(r"\bgh:(\d+)\b", ""),
-        &JsValue::from("https://github.com/indico/indico/issues/{1}"),
-    ));
-
-    let res = to_html(md, &rules.into()).unwrap();
+    let opts = JsMarkdownOpts {
+        autolink_rules: Some(vec![
+            JsAutolinkRule {
+                regex: r"\bTKT(\d{7})\b".into(),
+                url: "https://tkt.sys/{1}".into(),
+            },
+            JsAutolinkRule {
+                regex: r"\bgh:(\d+)\b".into(),
+                url: "https://github.com/indico/indico/issues/{1}".into(),
+            },
+        ]),
+        ..JsMarkdownOpts::default()
+    };
+    let res = to_html(
+        md,
+        Some(serde_wasm_bindgen::to_value(&opts).unwrap().into()),
+    )
+    .unwrap();
 
     assert_eq!(
         res,
@@ -38,29 +45,143 @@ fn function_test() {
 "##
     );
 
-    assert_eq!(
-        to_unstyled_html("## title\n[`link`](https://example.com)\\\n`more` **text**").unwrap(),
-        "title\n<p>link<br />\nmore text</p>\n"
+    let md = "## title\n[`link`](https://example.com)\\\n`more` **text**";
+    let opts = JsMarkdownOpts {
+        unstyled: Some(true),
+        ..opts
+    };
+    let res = to_html(
+        md,
+        Some(serde_wasm_bindgen::to_value(&opts).unwrap().into()),
     )
+    .unwrap();
+    assert_eq!(res, "titlelink<br />\nmore text\n")
+}
+
+#[wasm_bindgen_test]
+fn nl2br_test() {
+    assert_eq!(
+        to_html("hello\nworld", None),
+        Ok("<p>hello\nworld</p>\n".into())
+    );
+    assert_eq!(
+        to_html(
+            "hello\nworld",
+            Some(
+                serde_wasm_bindgen::to_value(&JsMarkdownOpts {
+                    unstyled: Some(true),
+                    ..JsMarkdownOpts::default()
+                })
+                .unwrap()
+                .into()
+            )
+        ),
+        Ok("hello\nworld\n".into())
+    );
+    assert_eq!(
+        to_html(
+            "hello\nworld",
+            Some(
+                serde_wasm_bindgen::to_value(&JsMarkdownOpts {
+                    nl2br: Some(true),
+                    ..JsMarkdownOpts::default()
+                })
+                .unwrap()
+                .into()
+            )
+        ),
+        Ok("<p>hello<br />\nworld</p>\n".into())
+    );
+    assert_eq!(
+        to_html(
+            "hello\nworld",
+            Some(
+                serde_wasm_bindgen::to_value(&JsMarkdownOpts {
+                    unstyled: Some(true),
+                    nl2br: Some(true),
+                    ..JsMarkdownOpts::default()
+                })
+                .unwrap()
+                .into()
+            )
+        ),
+        Ok("hello<br />\nworld<br />\n".into())
+    );
 }
 
 #[wasm_bindgen_test]
 fn interface_test() {
-    assert_eq!(to_html("", &Array::new()), Ok("".into()));
+    assert_eq!(to_html("", None), Ok("".into()));
+    assert_eq!(
+        to_html("", Some(JsValue::from(Object::new()).into())),
+        Ok("".into())
+    );
 
-    let rules = Array::new();
-    rules.push(&Array::of2(
-        &RegExp::new(r"/a/", ""),
-        // URL cannot be a bool, so this should fail
-        &JsValue::from_bool(true),
-    ));
-    let res = to_html("foo", &rules);
+    // missing keys
+    let opts = Object::from_entries(&Array::of1(&Array::of2(
+        &"autolinkRules".into(),
+        &Array::of1(
+            &Object::from_entries(&Array::of1(&Array::of2(&"regex".into(), &r"foo".into())))
+                .unwrap(),
+        ),
+    )))
+    .unwrap();
+    let res = to_html("foo", Some(JsValue::from(opts).into()));
     assert!(res.is_err());
     assert!(
         res.err()
             .unwrap()
             .as_string()
             .expect("Error is not a string")
-            .contains("not a valid string")
-    )
+            .contains("missing field `url`")
+    );
+
+    // invalid type
+    let opts = Object::from_entries(&Array::of1(&Array::of2(
+        &"autolinkRules".into(),
+        &Array::of1(
+            &Object::from_entries(&Array::of1(&Array::of2(
+                &"regex".into(),
+                &JsValue::from_bool(true),
+            )))
+            .unwrap(),
+        ),
+    )))
+    .unwrap();
+    let res = to_html("foo", Some(JsValue::from(opts).into()));
+    assert!(res.is_err());
+    assert!(
+        res.err()
+            .unwrap()
+            .as_string()
+            .expect("Error is not a string")
+            .contains("invalid type: boolean `true`, expected a string")
+    );
+
+    // invalid type for config value
+    let opts = Object::from_entries(&Array::of1(&Array::of2(
+        &"nl2br".into(),
+        &JsValue::from_f64(69.0),
+    )))
+    .unwrap();
+    let res = to_html("foo", Some(JsValue::from(opts).into()));
+    assert!(res.is_err());
+    assert!(
+        res.err()
+            .unwrap()
+            .as_string()
+            .expect("Error is not a string")
+            .contains("invalid type: floating point `69.0`, expected a boolean")
+    );
+
+    // invalid type for config object
+    let res = to_html("foo", Some(JsValue::from_f64(69.0).into()));
+    assert!(res.is_err());
+    assert!(
+        res.err()
+            .unwrap()
+            .as_string()
+            .expect("Error is not a string")
+            .contains("invalid type: floating point `69.0`, expected struct JsMarkdownOpts")
+    );
 }

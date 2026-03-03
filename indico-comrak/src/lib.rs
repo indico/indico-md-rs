@@ -10,9 +10,10 @@
 //! URLs, and then call `indico_markdown_to_html` with the Markdown text and the link rules to
 //! generate the HTML output.
 
+pub use crate::options::MarkdownOptions;
 use comrak::{
     Arena, Node, Options, create_formatter,
-    html::ChildRendering,
+    html::{ChildRendering, format_node_default},
     nodes::{ListDelimType, ListType, NodeLink, NodeValue},
     parse_document,
 };
@@ -20,7 +21,9 @@ use core::fmt;
 use regex_lite::Regex;
 use std::fmt::{Display, Formatter, Write};
 
-#[derive(Debug)]
+mod options;
+
+#[derive(Debug, Clone)]
 /// Represents a rule for matching links.
 ///
 /// The `LinkRule` struct contains a regular expression and a URL string.
@@ -122,11 +125,25 @@ fn plain_text_formatter<'a>(
             }
             Ok(ChildRendering::HTML)
         }
-        // Text, paragraphs and breaks stay the same
-        NodeValue::Text(..)
-        | NodeValue::Paragraph
-        | NodeValue::SoftBreak
-        | NodeValue::LineBreak => comrak::html::format_node_default(context, node, entering),
+        // Paragraphs are rendered like soft breaks when leaving them
+        // XXX This may be a problem w/ hardbreaks enabled, since it always adds a trailing hardbreak,
+        // which is not really something we want, but for now we don't use it with hardbreaks so I'm not
+        // going to worry about how to fix it...
+        NodeValue::Paragraph => {
+            if !entering {
+                if context.options.render.hardbreaks {
+                    context.write_str("<br />\n")?;
+                } else {
+                    context.write_str("\n")?;
+                }
+            }
+
+            Ok(ChildRendering::HTML)
+        }
+        // Text and breaks stay the same
+        NodeValue::Text(..) | NodeValue::SoftBreak | NodeValue::LineBreak => {
+            comrak::html::format_node_default(context, node, entering)
+        }
         // Text decoration is ignored
         NodeValue::Strong
         | NodeValue::Emph
@@ -180,11 +197,12 @@ create_formatter!(
     TargetBlankFormatter, {
         NodeValue::Link(ref nl) => |context, entering| {
             if entering {
-                context.write_str(&format!("<a href=\"{}\" {}target=\"_blank\">", nl.url, if nl.title.is_empty() {
+                let nl_title = if nl.title.is_empty() {
                     ""
                 } else {
                     &format!("title=\"{}\" ", nl.title)
-                }))?;
+                };
+                context.write_str(&format!("<a href=\"{}\" {}target=\"_blank\">", nl.url, nl_title))?;
             } else {
                 context.write_str("</a>")?;
             }
@@ -250,22 +268,32 @@ fn add_links<'t>(root: &mut Node<'t>, arena: &'t Arena<'t>, link_rules: &[LinkRu
         }
     }
 
-    for (node, text, matches) in to_process {
+    for (node, text, mut matches) in to_process {
         // Exclude nodes whose ancestor is a link
         if has_link_ancestor(node) {
             continue;
         }
 
-        let parent = node.parent().unwrap();
-        node.detach();
-
         let mut prev_end = 0;
+
+        // sort matches in the order by which they appear in the string
+        matches.sort_by_key(|f| f.0.0);
+
+        let parent = node.parent().unwrap();
+        let next = node.next_sibling();
+        let append = |new| {
+            if let Some(next) = next {
+                // if the node is not the last child of its parent, insert each newly created node before the successor
+                next.insert_before(new);
+            } else {
+                // otherwise just append at the end of the parent
+                parent.append(new);
+            }
+        };
 
         // let's check each match one by one
         for ((start, end), url, capture_groups) in &matches {
-            parent.append(
-                arena.alloc(NodeValue::Text(text[prev_end..*start].to_string().into()).into()),
-            );
+            append(arena.alloc(NodeValue::Text(text[prev_end..*start].to_string().into()).into()));
 
             let link = arena.alloc(
                 NodeValue::Link(Box::new(NodeLink {
@@ -276,83 +304,99 @@ fn add_links<'t>(root: &mut Node<'t>, arena: &'t Arena<'t>, link_rules: &[LinkRu
             );
             link.append(arena.alloc(NodeValue::Text(text[*start..*end].to_string().into()).into()));
 
-            parent.append(link);
+            append(link);
             prev_end = *end;
         }
 
         let last_end = matches.last().unwrap().0.1;
 
         if last_end != text.len() {
-            parent.append(arena.alloc(NodeValue::Text(text[last_end..].to_string().into()).into()));
+            append(arena.alloc(NodeValue::Text(text[last_end..].to_string().into()).into()));
         }
+
+        node.detach();
     }
 }
 
-/// Main function in the module, which takes a markdown string and a list of rules, and returns
-/// the resulting HTML
-pub fn indico_markdown_to_html(
-    md_source: &str,
-    autolink_rules: &[LinkRule],
-) -> Result<String, fmt::Error> {
-    let mut options = Options::default();
-    options.extension.strikethrough = true;
-    options.extension.header_ids = Some("indico-md-".into());
-    options.extension.tagfilter = true;
-    options.extension.table = true;
-    options.extension.tasklist = true;
-    options.extension.alerts = true;
-    options.extension.autolink = true;
-    options.extension.math_code = true;
-    options.extension.math_dollars = true;
-    options.extension.underline = true;
-    options.extension.highlight = true;
-    options.render.r#unsafe = true;
+/// Main function in the module, which takes a markdown string and and options, and returns the resulting HTML
+impl MarkdownOptions {
+    pub fn render_markdown(&self, md_source: &str) -> Result<String, fmt::Error> {
+        let mut comrak_opts = Options::default();
+        if self.unstyled {
+            comrak_opts.extension.strikethrough = true;
+            comrak_opts.extension.table = true;
+            comrak_opts.extension.tasklist = true;
+            comrak_opts.extension.alerts = true;
+            comrak_opts.extension.underline = true;
+            comrak_opts.extension.highlight = true;
+        } else {
+            comrak_opts.extension.strikethrough = true;
+            comrak_opts.extension.header_ids = Some("indico-md-".into());
+            comrak_opts.extension.tagfilter = true;
+            comrak_opts.extension.table = true;
+            comrak_opts.extension.tasklist = true;
+            comrak_opts.extension.alerts = true;
+            comrak_opts.extension.autolink = true;
+            comrak_opts.extension.math_code = true;
+            comrak_opts.extension.math_dollars = true;
+            comrak_opts.extension.underline = true;
+            comrak_opts.extension.highlight = true;
+            comrak_opts.render.r#unsafe = true;
+        };
+        comrak_opts.render.hardbreaks = self.hardbreaks;
 
-    let arena = Arena::new();
-    let mut root = parse_document(&arena, md_source, &options);
+        let arena = Arena::new();
+        let mut root = parse_document(&arena, md_source, &comrak_opts);
+        let mut out = String::new();
 
-    add_links(&mut root, &arena, autolink_rules);
+        if !self.autolink_rules.is_empty() {
+            add_links(&mut root, &arena, &self.autolink_rules);
+        }
 
-    let mut out = String::new();
-    TargetBlankFormatter::format_document(root, &options, &mut out)?;
+        if self.unstyled {
+            comrak::html::format_document_with_formatter(
+                root,
+                &comrak_opts,
+                &mut out,
+                &Default::default(),
+                plain_text_formatter,
+                Vec::new(),
+            )
+            .unwrap_or_else(|_| unreachable!("writing to String cannot fail"));
+        } else if self.target_blank {
+            comrak::html::format_document_with_formatter(
+                root,
+                &comrak_opts,
+                &mut out,
+                &Default::default(),
+                TargetBlankFormatter::formatter,
+                (),
+            )
+            .unwrap_or_else(|_| unreachable!("writing to String cannot fail"));
+        } else {
+            comrak::html::format_document_with_formatter(
+                root,
+                &comrak_opts,
+                &mut out,
+                &Default::default(),
+                format_node_default,
+                (),
+            )
+            .unwrap_or_else(|_| unreachable!("writing to String cannot fail"));
+        }
 
-    Ok(out)
-}
-
-/// Convert markdown to plain text, which only renders paragraphs and line breaks and ignores all other rendering
-pub fn indico_markdown_to_unstyled_html(md_source: &str) -> Result<String, fmt::Error> {
-    let mut options = Options::default();
-    options.extension.strikethrough = true;
-    options.extension.table = true;
-    options.extension.tasklist = true;
-    options.extension.alerts = true;
-    options.extension.underline = true;
-    options.extension.highlight = true;
-
-    let arena = Arena::new();
-    let root = parse_document(&arena, md_source, &options);
-    let mut out = String::new();
-
-    comrak::html::format_document_with_formatter(
-        root,
-        &options,
-        &mut out,
-        &Default::default(),
-        plain_text_formatter,
-        Vec::new(),
-    )
-    .unwrap_or_else(|_| unreachable!("writing to String cannot fail"));
-    Ok(out)
+        Ok(out)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{LinkRule, indico_markdown_to_html, indico_markdown_to_unstyled_html};
+    use super::{LinkRule, MarkdownOptions};
 
     #[test]
     fn test_highlight_text() {
         let md = r#"==This is important=="#;
-        let html = indico_markdown_to_html(md, &[]).unwrap();
+        let html = MarkdownOptions::new().render_markdown(md).unwrap();
         // should include the language class and the code content
         assert_eq!(html, "<p><mark>This is important</mark></p>\n");
     }
@@ -362,7 +406,7 @@ mod tests {
         let md = r#"## TEST
  https://example.com
 "#;
-        let res = indico_markdown_to_html(md, &[]).unwrap();
+        let res = MarkdownOptions::new().render_markdown(md).unwrap();
         assert_eq!(
             res,
             r##"<h2><a href="#test" aria-hidden="true" class="anchor" id="indico-md-test"></a>TEST</h2>
@@ -378,18 +422,17 @@ mod tests {
  * Still checking gh:123
  * [gh:124](https://somewhere.else) shouldn't be autolinked
 "#;
-        let res = indico_markdown_to_html(
-            md,
-            &[
+        let res = MarkdownOptions::new()
+            .autolink_rules(&[
                 LinkRule::new(r"\bTKT(\d{7})\b", "https://tkt.sys/{1}").unwrap(),
                 LinkRule::new(
                     r"\bgh:(\d+)\b",
                     "https://github.com/indico/indico/issues/{1}",
                 )
                 .unwrap(),
-            ],
-        )
-        .unwrap();
+            ])
+            .render_markdown(md)
+            .unwrap();
         assert_eq!(
             res,
             r##"<h2><a href="#test" aria-hidden="true" class="anchor" id="indico-md-test"></a>TEST</h2>
@@ -401,21 +444,22 @@ mod tests {
 "##
         );
 
-        let res =
-            indico_markdown_to_html("FOO", &[LinkRule::new(r"FOO", "{0}BAR").unwrap()]).unwrap();
+        let res = MarkdownOptions::new()
+            .autolink_rules(&[LinkRule::new(r"FOO", "{0}BAR").unwrap()])
+            .render_markdown("FOO")
+            .unwrap();
         assert_eq!(
             res,
             "<p><a href=\"FOOBAR\" title=\"FOO\" target=\"_blank\">FOO</a></p>\n"
         );
 
-        let res = indico_markdown_to_html(
-            "FOO is FOO and BAR is BAR",
-            &[
+        let res = MarkdownOptions::new()
+            .autolink_rules(&[
                 LinkRule::new(r"(F)(O)(O)", "{1}{2}{3}BAR").unwrap(),
                 LinkRule::new(r"BAR", "FOO{0}").unwrap(),
-            ],
-        )
-        .unwrap();
+            ])
+            .render_markdown("FOO is FOO and BAR is BAR")
+            .unwrap();
         assert_eq!(
             res,
             "<p><a href=\"FOOBAR\" title=\"FOO\" target=\"_blank\">FOO</a> is <a href=\"FOOBAR\" title=\"FOO\" target=\"_blank\">FOO</a> \
@@ -424,56 +468,151 @@ and <a href=\"FOOBAR\" title=\"BAR\" target=\"_blank\">BAR</a> is <a href=\"FOOB
     }
 
     #[test]
+    fn test_indico_autolink_multi() {
+        let md = r#"INC1234567 and OTG1234567"#;
+        let expected = r##"<p><a href="https://tkt.example/INC1234567" title="INC1234567" target="_blank">INC1234567</a> and <a href="https://tkt.example/OTG1234567" title="OTG1234567" target="_blank">OTG1234567</a></p>
+"##;
+        let res = MarkdownOptions::new()
+            .autolink_rules(&[
+                LinkRule::new(r"\b(OTG\d{7})\b", "https://tkt.example/{1}").unwrap(),
+                LinkRule::new(r"\b(INC\d{7})\b", "https://tkt.example/{1}").unwrap(),
+            ])
+            .render_markdown(md)
+            .unwrap();
+        assert_eq!(res, expected);
+        // reverse rule order
+        let res = MarkdownOptions::new()
+            .autolink_rules(&[
+                LinkRule::new(r"\b(INC\d{7})\b", "https://tkt.example/{1}").unwrap(),
+                LinkRule::new(r"\b(OTG\d{7})\b", "https://tkt.example/{1}").unwrap(),
+            ])
+            .render_markdown(md)
+            .unwrap();
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_indico_autolink_inline() {
+        macro_rules! md_test {
+            ($md:expr, $html:expr) => {
+                let res = MarkdownOptions::new()
+                    .target_blank(false)
+                    .autolink_rules(&[LinkRule::new(r"(INC)", "https://tkt.example/{1}").unwrap()])
+                    .render_markdown($md)
+                    .unwrap();
+                assert_eq!(res, $html);
+            };
+        }
+
+        md_test!(
+            r#"INC **foo**"#,
+            "<p><a href=\"https://tkt.example/INC\" title=\"INC\">INC</a> <strong>foo</strong></p>\n"
+        );
+        md_test!(
+            r#"**foo** INC"#,
+            "<p><strong>foo</strong> <a href=\"https://tkt.example/INC\" title=\"INC\">INC</a></p>\n"
+        );
+        md_test!(
+            r#"**foo**INC"#,
+            "<p><strong>foo</strong><a href=\"https://tkt.example/INC\" title=\"INC\">INC</a></p>\n"
+        );
+        md_test!(
+            r#"INC**foo**"#,
+            "<p><a href=\"https://tkt.example/INC\" title=\"INC\">INC</a><strong>foo</strong></p>\n"
+        );
+        md_test!(
+            r#"aINCb"#,
+            "<p>a<a href=\"https://tkt.example/INC\" title=\"INC\">INC</a>b</p>\n"
+        );
+        md_test!(
+            r#"INCINC"#,
+            "<p><a href=\"https://tkt.example/INC\" title=\"INC\">INC</a><a href=\"https://tkt.example/INC\" title=\"INC\">INC</a></p>\n"
+        );
+    }
+
+    #[test]
     fn test_raw_html() {
         // raw HTML should be escaped when tagfilter is enabled
         let md = "<script>alert('x')</script>";
-        let html = indico_markdown_to_html(md, &[]).unwrap();
+        let html = MarkdownOptions::new().render_markdown(md).unwrap();
         assert_eq!(html, "&lt;script>alert('x')&lt;/script>\n");
 
         let md = "<div>FOO</div>";
-        let html =
-            indico_markdown_to_html(md, &[LinkRule::new(r"FOO", "https://example/{0}").unwrap()])
-                .unwrap();
+        let html = MarkdownOptions::new()
+            .autolink_rules(&[LinkRule::new(r"FOO", "https://example/{0}").unwrap()])
+            .render_markdown(md)
+            .unwrap();
         assert_eq!(html, "<div>FOO</div>\n");
 
         let md = "<a href=\"http://something.com\">FOO</a>";
-        let html =
-            indico_markdown_to_html(md, &[LinkRule::new(r"FOO", "https://example/{0}").unwrap()])
-                .unwrap();
+        let html = MarkdownOptions::new()
+            .autolink_rules(&[LinkRule::new(r"FOO", "https://example/{0}").unwrap()])
+            .render_markdown(md)
+            .unwrap();
         assert_eq!(html, "<p><a href=\"http://something.com\">FOO</a></p>\n");
 
         // inline HTML-like tags are also escaped rather than rendered
         let md = "A <b>bold</b> move";
-        let html = indico_markdown_to_html(md, &[]).unwrap();
+        let html = MarkdownOptions::new().render_markdown(md).unwrap();
         assert_eq!(html, "<p>A <b>bold</b> move</p>\n");
     }
 
     #[test]
     fn test_indico_md_to_plain() {
-        let md = "[**Foo**](https://example.com)\n\n==B`ar`==<div>foo</div>";
-        let html = indico_markdown_to_unstyled_html(md).unwrap();
-        assert_eq!(html, "<p>Foo</p>\n<p>Barfoo</p>\n");
+        macro_rules! md_test {
+            ($md:expr, $html:expr) => {
+                let res = MarkdownOptions::new()
+                    .unstyled(true)
+                    .render_markdown($md)
+                    .unwrap();
+                assert_eq!(res, $html);
+            };
+        }
 
-        let md = "soft\\\nvs hard break\n\nhello";
-        let html = indico_markdown_to_unstyled_html(md).unwrap();
-        assert_eq!(html, "<p>soft<br />\nvs hard break</p>\n<p>hello</p>\n");
-
-        let md = "soft<br/>vs hard break<p>hello</p>";
-        let html = indico_markdown_to_unstyled_html(md).unwrap();
-        assert_eq!(html, "<p>soft<br />vs hard break<p>hello</p></p>\n");
-
-        let md = "* a list\n* of\n  - nested\n* things";
-        let html = indico_markdown_to_unstyled_html(md).unwrap();
-        assert_eq!(
-            html,
-            "\n  * a list\n  * of\n    - nested\n\n\n  * things\n\n"
+        md_test!("**Hello**\n*World*\n\nFoo", "Hello\nWorld\nFoo\n");
+        md_test!(
+            "[**Foo**](https://example.com)\n\n==B`ar`==<div>foo</div>",
+            "Foo\nBarfoo\n"
         );
-
-        let md = "1. a list\n2. of\n    - nested\n3. ordered things";
-        let html = indico_markdown_to_unstyled_html(md).unwrap();
-        assert_eq!(
-            html,
-            "\n  1. a list\n  2. of\n    - nested\n\n\n  3. ordered things\n\n"
+        md_test!(
+            "soft\\\nvs hard break\n\nhello",
+            "soft<br />\nvs hard break\nhello\n"
         );
+        md_test!(
+            "soft<br/>vs hard break<p>hello</p>",
+            "soft<br />vs hard break<p>hello</p>\n"
+        );
+        md_test!(
+            "* a list\n* of\n  - nested\n* things",
+            "\n  * a list\n\n  * of\n\n    - nested\n\n\n\n  * things\n\n\n"
+        );
+        md_test!(
+            "1. a list\n2. of\n    - nested\n3. ordered things",
+            "\n  1. a list\n\n  2. of\n\n    - nested\n\n\n\n  3. ordered things\n\n\n"
+        );
+    }
+
+    #[test]
+    fn test_hardbreaks() {
+        // linebreaks should be converted to HTML linebreaks if enabled
+        let md = "hello\nworld";
+        let html = MarkdownOptions::new()
+            .unstyled(true)
+            .render_markdown(md)
+            .unwrap();
+        assert_eq!(html, "hello\nworld\n");
+        let html = MarkdownOptions::new().render_markdown(md).unwrap();
+        assert_eq!(html, "<p>hello\nworld</p>\n");
+        let html = MarkdownOptions::new()
+            .unstyled(true)
+            .hardbreaks(true)
+            .render_markdown(md)
+            .unwrap();
+        assert_eq!(html, "hello<br />\nworld<br />\n"); // XXX the last hardbreak is undesirable
+        let html = MarkdownOptions::new()
+            .hardbreaks(true)
+            .render_markdown(md)
+            .unwrap();
+        assert_eq!(html, "<p>hello<br />\nworld</p>\n");
     }
 }
