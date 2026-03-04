@@ -1,26 +1,26 @@
 [project]
-name = "indico-md"
-readme = "README.md"
-requires-python = ">=3.10"
+name = 'indico-md'
+readme = 'README.md'
+requires-python = '>=3.10'
 classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
+    'Programming Language :: Rust',
+    'Programming Language :: Python :: Implementation :: CPython',
 ]
-dynamic = ["version"]
+dynamic = ['version']
 
 [build-system]
-requires = ["maturin>=1.9,<2.0"]
-build-backend = "maturin"
+requires = ['maturin>=1.9,<2.0']
+build-backend = 'maturin'
 
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ['pytest']
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ['pyo3/extension-module']
 
 [[tool.uv.index]]
-name = "testpypi"
-url = "https://test.pypi.org/simple/"
-publish-url = "https://test.pypi.org/legacy/"
+name = 'testpypi'
+url = 'https://test.pypi.org/simple/'
+publish-url = 'https://test.pypi.org/legacy/'
 explicit = true
