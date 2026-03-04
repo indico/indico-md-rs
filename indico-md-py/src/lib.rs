@@ -39,11 +39,11 @@ use std::collections::HashMap;
 /// ```python
 /// import indico_md
 ///
-/// # Convert #1234 to a GitHub issue link
-/// md_text = "See issue #1234 for details"
-/// link_rules = {"#([0-9]+)": "https://github.com/org/repo/issues/$1"}
-/// html = indico_md.to_html(md_text, link_rules)
-/// # Output: '<p>See issue <a href="https://github.com/org/repo/issues/1234">#1234</a> for details</p>'
+/// # Converts #1234 to a GitHub issue link
+/// md_text = 'See issue #1234 for details'
+/// link_rules = {'#([0-9]+)': 'https://github.com/org/repo/issues/$1'}
+/// html = indico_md.to_html(md_text, link_rules=link_rules, target_blank=False)
+/// # Output: '<p>See issue <a href="https://github.com/org/repo/issues/$1" title="#1234">#1234</a> for details</p>\n'
 /// ```
 #[pyfunction]
 #[pyo3(signature=(md_source, /, *, link_rules=None, nl2br=false, unstyled=false, target_blank=true))]
