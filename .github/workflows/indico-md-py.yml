@@ -17,13 +17,12 @@ on:
 permissions:
   contents: read
 
-defaults:
-  run:
-    working-directory: ./indico-md-py
-
 jobs:
   clippy_format:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./indico-md-py
     steps:
     - uses: actions/checkout@v6
       with:
@@ -48,6 +47,9 @@ jobs:
             target: armv7
           - runner: ubuntu-22.04
             target: ppc64le
+    defaults:
+      run:
+        working-directory: ./indico-md-py
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -106,6 +108,9 @@ jobs:
             target: aarch64
           - runner: ubuntu-22.04
             target: armv7
+    defaults:
+      run:
+        working-directory: ./indico-md-py
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -163,6 +168,9 @@ jobs:
             target: x86_64
           - runner: macos-latest
             target: aarch64
+    defaults:
+      run:
+        working-directory: ./indico-md-py
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
