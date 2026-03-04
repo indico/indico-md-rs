@@ -1,21 +1,38 @@
 [project]
-name = "indico-md"
-readme = "README.md"
-requires-python = ">=3.8"
+name = 'indico-md'
+description = 'Indico-flavored Markdown renderer based on Comrak with support for autolinking based on custom rules'
+readme = 'README.md'
+dynamic = ['version']
+license = 'MIT'
+authors = [{ name = 'Indico Team', email = 'indico-team@cern.ch' }]
 classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
+    'License :: OSI Approved :: MIT License',
+    'Programming Language :: Rust',
+    'Programming Language :: Python :: Implementation :: CPython',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
+    'Programming Language :: Python :: 3.14',
+    'Topic :: Text Processing :: Markup :: Markdown',
 ]
-dynamic = ["version"]
+requires-python = '>=3.10'
+
+[project.urls]
+GitHub = 'https://github.com/indico/indico-md-rs'
 
 [build-system]
-requires = ["maturin>=1.9,<2.0"]
-build-backend = "maturin"
-
+requires = ['maturin>=1.9,<2.0']
+build-backend = 'maturin'
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ['pytest']
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ['pyo3/extension-module']
+
+[[tool.uv.index]]
+name = 'testpypi'
+url = 'https://test.pypi.org/simple/'
+publish-url = 'https://test.pypi.org/legacy/'
+explicit = true

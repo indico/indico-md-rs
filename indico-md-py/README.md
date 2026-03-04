@@ -21,8 +21,16 @@ maturin build --release
 
 Python API:
 ```python
-to_html(md_source: str, /, *, link_rules: Dict[str, str] | None = None, nl2br: bool = False) -> str
-to_unstyled_html(md_source: str, nl2br: bool = False) -> str
+def to_html(
+    md_source: str,
+    /,
+    *,
+    link_rules: Dict[str, str] | None = None,
+    nl2br: bool = False,
+    unstyled: bool = False,
+    target_blank: bool = True,
+) -> str:
+    ...
 ```
 
 Example:
@@ -35,7 +43,7 @@ rules = {
     r"\bgh:(\d+)\b": "https://github.com/indico/indico/issues/{1}",
 }
 
-html = indico_md.to_html(md, rules)
+html = indico_md.to_html(md, link_rules=rules)
 print(html)
 ```
 
