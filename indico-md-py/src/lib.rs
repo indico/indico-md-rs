@@ -23,16 +23,21 @@ use std::collections::HashMap;
 /// # Arguments
 ///
 /// * `md_source` - A string slice containing the Markdown text to convert
-/// * `link_rules` - A HashMap containing pairs of regular expression patterns (as strings) and
-///                  their corresponding URL replacements
+/// * `link_rules` - A dict containing pairs of regular expression patterns (as strings) and
+///                  their corresponding URL replacements.
+/// * `nl2br` - A bool specifying whether soft (`\n`) linebreaks should be converted to hard
+///             breaks (`<br>`), like in GitHub-flavored Markdown
+/// * `unstyled` - A bool specifying whether most styling should be stripped, resulting in a very
+///                compact HTML string with no paragraphs, hard linebreaks, links, etc.
+/// * `target_blank` - A bool specifying whether links should have `target="_blank"`
 ///
 /// # Returns
 ///
-/// * [`PyResult<String>`] - The resulting HTML string wrapped in a PyResult
+/// * The resulting HTML string.
 ///
 /// # Errors
 ///
-/// Returns a [`PyValueError`] if any of the regular expressions in the link rules are invalid
+/// Raises a `ValueError` if any of the regular expressions in the link rules is invalid.
 ///
 /// # Example
 ///
